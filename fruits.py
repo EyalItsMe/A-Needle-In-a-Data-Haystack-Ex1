@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 import pandas as pd
 from festival import tfidf
+from collections import defaultdict
 
 import nltk
 # nltk.download('punkt')
@@ -310,15 +311,28 @@ def section_b():
                 print(f"- {sentence.strip('')}")
 
 def section_c():
+    # For each fruit, take the3 words with highest td-idf value and add to the dataframe a column for each word and in each row, the td-idf value that word received for the corresponding fruit.** Remove duplicates of words if they appear as a top word for more than one fruit (so don’t have two columns for the word ’sweet’ for example).
     summary_path = "fruits_summary.csv"
     df = pd.read_csv(summary_path)
-    for summary in df['Summary']:
-        words = summary.lower().split()
+    top_words = pd.DataFrame()
+
+    for fruit, summary in df[['Fruit', 'Summary']].values:
+        # Remove , and - from words
+        words = summary.replace(',', '').replace('-', ' ').lower().split(' ')
         # Get unique words
         unique_words = set(words)
         score = tfidf(summary_path, unique_words, False)
-        print(score)
+        # sort scores by the relevant fruit:
+        fruit_scores = score.loc[fruit]
+        top_fruit_words = fruit_scores.sort_values(ascending=False).head(3)
+        #Get the row of the top fruit words:
+        top_fruit = score[top_fruit_words.index]
 
+        for word, value in top_fruit.items():
+            if word not in top_words.columns:
+                top_words.insert(len(top_words.columns), word, value)
+
+    return top_words
 def section_d():
     # section d:
     # Load the amount of sugar, time it last and price from fruits.csv
@@ -362,7 +376,7 @@ if __name__ == "__main__":
     # for fruit in fruits:
     #     fruitcrawl(fruit)
 
-    # section_b()
+    section_b()
     section_c()
-    # section_d()
-    # section_e()
+    section_d()
+    section_e()
