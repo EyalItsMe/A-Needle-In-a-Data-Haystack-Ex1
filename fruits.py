@@ -8,8 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 import pandas as pd
-
-
+from festival import tfidf
 
 import nltk
 # nltk.download('punkt')
@@ -275,8 +274,6 @@ def preprocess_data(df):
 def section_b():
     # section (b)
     fruit_data_folder = "fruit_json/"
-    # Load all fruit text data from the JSON files
-    fruit_documents = load_fruit_docs(fruit_data_folder)
     # Open the CSV file for writing with UTF-8 encoding
     with io.open("fruits_summary.csv", "w", newline='', encoding='utf-8') as csvfile:
         csvwriter = csv.writer(csvfile)
@@ -311,6 +308,16 @@ def section_b():
             print(f"\nSummary for {fruit}:")
             for sentence in summary:
                 print(f"- {sentence.strip('')}")
+
+def section_c():
+    summary_path = "fruits_summary.csv"
+    df = pd.read_csv(summary_path)
+    for summary in df['Summary']:
+        words = summary.lower().split()
+        # Get unique words
+        unique_words = set(words)
+        tfidf = tfidf(summary_path, unique_words)
+
 
 def section_d():
     # section d:
