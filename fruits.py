@@ -316,8 +316,8 @@ def section_c():
         words = summary.lower().split()
         # Get unique words
         unique_words = set(words)
-        tfidf = tfidf(summary_path, unique_words)
-
+        score = tfidf(summary_path, unique_words, False)
+        print(score)
 
 def section_d():
     # section d:
@@ -363,5 +363,6 @@ if __name__ == "__main__":
     #     fruitcrawl(fruit)
 
     # section_b()
+    section_c()
     # section_d()
-    section_e()
+    # section_e()
