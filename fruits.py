@@ -355,6 +355,6 @@ if __name__ == "__main__":
     # for fruit in fruits:
     #     fruitcrawl(fruit)
 
-    section_b()
-    section_d()
+    # section_b()
+    # section_d()
     section_e()
