@@ -239,39 +239,37 @@ def kmeans(X,k, iterations=1000):
 
 
 def plot_kmeans(X, labels, centroids):
-    plt.scatter(X[:, 0], X[:, 2], c=labels, cmap='viridis', label='Data points')
-    plt.scatter(centroids[:, 0], centroids[:, 2], c='red', s=100, alpha=0.5, label='Centroids')
+    plt.scatter(X[:, 0], X[:, 1], c=labels, cmap='viridis', label='Data points')
     plt.title('K-means Clustering of Fruits')
     plt.xlabel('Amount of Sugar')
     plt.ylabel('Price')
     plt.legend()
     plt.show()
 
-def preprocess_data(fruits):
-    # Extract features
-    colors = [fruit[1] for fruit in fruits]
-    peelings = [fruit[2] for fruit in fruits]
-    seasons = [fruit[3] for fruit in fruits]
-    prices = [fruit[4] for fruit in fruits]
-    sugars = [fruit[5] for fruit in fruits]
-    times = [fruit[6] for fruit in fruits]
+def kmeans_mixed(X, k, iterations=100):
+    centroids = X[np.random.choice(range(X.shape[0]), size=k, replace=False), :]
 
-    categorical_features = ['Color', 'Peeling/Messiness', 'Growth']
+    for i in range(iterations):
+        distances = np.array([[np.linalg.norm(x - centroid) for centroid in centroids] for x in X])
+        labels = np.argmin(distances, axis=1)
+        new_centroids = np.array([X[labels == j].mean(axis=0) for j in range(k)])
 
-    # One-hot encode categorical features
-    encoder = OneHotEncoder(sparse=False)
-    categorical_features = np.array(list(zip(colors, peelings, seasons)))
-    categorical_encoded = encoder.fit_transform(categorical_features)
+        if np.all(centroids == new_centroids):
+            break
+        centroids = new_centroids
+    return labels, centroids
 
-    # Normalize numerical features
-    scaler = StandardScaler()
-    numerical_features = np.array(list(zip(prices, sugars, times)))
-    numerical_scaled = scaler.fit_transform(numerical_features)
+def preprocess_data(df):
+    # Label encoding
+    color_mapping = {'Black': 1, 'Blue': 2, 'Brown': 3, 'Green': 4, 'Orange': 5, 'Pink': 6, 'Purple': 7, 'Red': 8,
+                     'Yellow': 9}
+    peeling_mapping = {'Low': 1, 'Medium': 2, 'High': 3}
+    season_mapping = {'Fall': 1, 'Summer': 2, 'Winter': 3}
 
-    # Combine encoded categorical and scaled numerical features
-    X = np.hstack((categorical_encoded, numerical_scaled))
-
-    return X
+    df['Color'] = df['Color'].map(color_mapping)
+    df['Peeling/Messiness'] = df['Peeling/Messiness'].map(peeling_mapping)
+    df['Growth Season'] = df['Growth Season'].map(season_mapping)
+    return df
 
 
 def section_b():
@@ -335,36 +333,21 @@ def section_d():
     # Perform K-means clustering
     labels, centroids = kmeans(X, 3, 10000)
 
+    X_plot = np.array(list(zip(sugar, price)))
     # Plot the K-means clustering
-    plot_kmeans(X, labels, centroids)
+    plot_kmeans(X_plot, labels, centroids)
 
 def section_e():
     # Load the data from CSV file
     df = pd.read_csv("fruits.csv")
+    X = preprocess_data(df)
 
-    categorical_features = ['Color', 'Peeling/Messiness', 'Growth Season']
-    ohe = OneHotEncoder(handle_unknown='ignore')
-    ohe.fit(df[categorical_features])
-    encoded_data = ohe.transform(df[categorical_features])
-    encoded_df = pd.DataFrame(encoded_data, columns=ohe.get_feature_names_out(categorical_features))
-    data_with_encoded_features = pd.concat([df, encoded_df], axis=1)
+    categorical_features = X[['Color', 'Peeling/Messiness', 'Growth Season']].values
 
-    # Preprocess data
-    X = preprocess_data(fruits)
+    labels, centroids = kmeans_mixed(categorical_features, 3)
 
-    # Perform K-means clustering on mixed data
-    # labels, centroids = kmeans_mixed(X, 3)
-    #
-    # # Extract normalized sugar and price for plotting
-    sugar = X[:, -2]  # Second last column (normalized)
-    price = X[:, -3]  # Third last column (normalized)
-    #
-    # # Combine sugar and price for plotting
-    # X_plot = np.array(list(zip(sugar, price)))
-    #
-    # # Plot the K-means clustering
-    # plot_kmeans(X_plot, labels, centroids, "K-means Clustering of Fruits by Sugar and Price", "Amount of Sugar", "Price")
-
+    X_plot = df[['Amount of Sugar', 'Price']].values
+    plot_kmeans(X_plot, labels, centroids)
 
 if __name__ == "__main__":
     # section (a)
@@ -372,6 +355,6 @@ if __name__ == "__main__":
     # for fruit in fruits:
     #     fruitcrawl(fruit)
 
-    # section_b()
-    # section_d()
+    section_b()
+    section_d()
     section_e()
