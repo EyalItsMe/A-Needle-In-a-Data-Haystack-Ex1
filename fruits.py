@@ -4,6 +4,12 @@ import os
 import re
 from os import listdir
 import sys
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+import pandas as pd
+
+
 
 import nltk
 # nltk.download('punkt')
@@ -217,20 +223,62 @@ def summarize_fruit(fruit_name, fruit_data_folder):
     for sentence in summary:
         print(f"- {sentence.strip()}")
 
+def kmeans(X,k, iterations=1000):
+    centroids = X[np.random.choice(range(X.shape[0]), size=k, replace=False), :]
+
+    for i in range(iterations):
+        distances = np.sqrt(((X-centroids[:,np.newaxis])**2).sum(axis=2))
+
+        labels = np.argmin(distances, axis=0)
+
+        new_centroids = np.array([X[labels == j].mean(axis=0) for j in range(k)])
+
+        if np.all(centroids == new_centroids):
+            break
+    return labels, centroids
 
 
-if __name__ == "__main__":
-    # section (a)
-    fruits = extract_fruits("fruits.csv")
-    # for fruit in fruits:
-    #     fruitcrawl(fruit)
+def plot_kmeans(X, labels, centroids):
+    plt.scatter(X[:, 0], X[:, 2], c=labels, cmap='viridis', label='Data points')
+    plt.scatter(centroids[:, 0], centroids[:, 2], c='red', s=100, alpha=0.5, label='Centroids')
+    plt.title('K-means Clustering of Fruits')
+    plt.xlabel('Amount of Sugar')
+    plt.ylabel('Price')
+    plt.legend()
+    plt.show()
 
+def preprocess_data(fruits):
+    # Extract features
+    colors = [fruit[1] for fruit in fruits]
+    peelings = [fruit[2] for fruit in fruits]
+    seasons = [fruit[3] for fruit in fruits]
+    prices = [fruit[4] for fruit in fruits]
+    sugars = [fruit[5] for fruit in fruits]
+    times = [fruit[6] for fruit in fruits]
+
+    categorical_features = ['Color', 'Peeling/Messiness', 'Growth']
+
+    # One-hot encode categorical features
+    encoder = OneHotEncoder(sparse=False)
+    categorical_features = np.array(list(zip(colors, peelings, seasons)))
+    categorical_encoded = encoder.fit_transform(categorical_features)
+
+    # Normalize numerical features
+    scaler = StandardScaler()
+    numerical_features = np.array(list(zip(prices, sugars, times)))
+    numerical_scaled = scaler.fit_transform(numerical_features)
+
+    # Combine encoded categorical and scaled numerical features
+    X = np.hstack((categorical_encoded, numerical_scaled))
+
+    return X
+
+
+def section_b():
     # section (b)
     fruit_data_folder = "fruit_json/"
-
     # Load all fruit text data from the JSON files
     fruit_documents = load_fruit_docs(fruit_data_folder)
-
     # Open the CSV file for writing with UTF-8 encoding
     with io.open("fruits_summary.csv", "w", newline='', encoding='utf-8') as csvfile:
         csvwriter = csv.writer(csvfile)
@@ -265,3 +313,65 @@ if __name__ == "__main__":
             print(f"\nSummary for {fruit}:")
             for sentence in summary:
                 print(f"- {sentence.strip('')}")
+
+def section_d():
+    # section d:
+    # Load the amount of sugar, time it last and price from fruits.csv
+    fruits = []
+    with open("fruits.csv", "r") as f:
+        next(f)
+        for line in f:
+            fruit_name, _, _, _, price, sugar, time = line.split(",")
+            fruits.append([fruit_name, float(sugar), float(time), float(price)])
+
+    # Normalize the sugar, time and price
+    sugar = np.array([fruit[1] for fruit in fruits])
+    time = np.array([fruit[2] for fruit in fruits])
+    price = np.array([fruit[3] for fruit in fruits])
+
+    # Combine the normalized sugar, time and price
+    X = np.array(list(zip(sugar, time, price)))
+
+    # Perform K-means clustering
+    labels, centroids = kmeans(X, 3, 10000)
+
+    # Plot the K-means clustering
+    plot_kmeans(X, labels, centroids)
+
+def section_e():
+    # Load the data from CSV file
+    df = pd.read_csv("fruits.csv")
+
+    categorical_features = ['Color', 'Peeling/Messiness', 'Growth Season']
+    ohe = OneHotEncoder(handle_unknown='ignore')
+    ohe.fit(df[categorical_features])
+    encoded_data = ohe.transform(df[categorical_features])
+    encoded_df = pd.DataFrame(encoded_data, columns=ohe.get_feature_names_out(categorical_features))
+    data_with_encoded_features = pd.concat([df, encoded_df], axis=1)
+
+    # Preprocess data
+    X = preprocess_data(fruits)
+
+    # Perform K-means clustering on mixed data
+    # labels, centroids = kmeans_mixed(X, 3)
+    #
+    # # Extract normalized sugar and price for plotting
+    sugar = X[:, -2]  # Second last column (normalized)
+    price = X[:, -3]  # Third last column (normalized)
+    #
+    # # Combine sugar and price for plotting
+    # X_plot = np.array(list(zip(sugar, price)))
+    #
+    # # Plot the K-means clustering
+    # plot_kmeans(X_plot, labels, centroids, "K-means Clustering of Fruits by Sugar and Price", "Amount of Sugar", "Price")
+
+
+if __name__ == "__main__":
+    # section (a)
+    fruits = extract_fruits("fruits.csv")
+    # for fruit in fruits:
+    #     fruitcrawl(fruit)
+
+    # section_b()
+    # section_d()
+    section_e()
