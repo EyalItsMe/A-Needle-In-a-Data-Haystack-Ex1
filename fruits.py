@@ -6,10 +6,9 @@ from os import listdir
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
 import pandas as pd
 from festival import tfidf
-from collections import defaultdict
+from sklearn.metrics.pairwise import cosine_similarity
 
 import nltk
 # nltk.download('punkt')
@@ -223,20 +222,25 @@ def summarize_fruit(fruit_name, fruit_data_folder):
     for sentence in summary:
         print(f"- {sentence.strip()}")
 
-def kmeans(X,k, iterations=1000):
+def euclidean_distance(X, centroids):
+    return np.sqrt(((X - centroids[:, np.newaxis]) ** 2).sum(axis=2))
+
+def mixed_distance(X, centroids):
+    return np.array([[np.linalg.norm(x - centroid) for centroid in centroids] for x in X])
+
+def cosine_distance(X, centroids):
+    similarities = cosine_similarity(X, centroids)
+    return 1 - similarities  # Convert similarity to distance
+def kmeans(X, k, distance_callback, iterations=100, axis=0):
     centroids = X[np.random.choice(range(X.shape[0]), size=k, replace=False), :]
-
     for i in range(iterations):
-        distances = np.sqrt(((X-centroids[:,np.newaxis])**2).sum(axis=2))
-
-        labels = np.argmin(distances, axis=0)
-
+        distances = distance_callback(X, centroids)
+        labels = np.argmin(distances, axis=axis)
         new_centroids = np.array([X[labels == j].mean(axis=0) for j in range(k)])
-
         if np.all(centroids == new_centroids):
             break
+        centroids = new_centroids
     return labels, centroids
-
 
 def plot_kmeans(X, labels, centroids):
     plt.scatter(X[:, 0], X[:, 1], c=labels, cmap='viridis', label='Data points')
@@ -245,19 +249,6 @@ def plot_kmeans(X, labels, centroids):
     plt.ylabel('Price')
     plt.legend()
     plt.show()
-
-def kmeans_mixed(X, k, iterations=100):
-    centroids = X[np.random.choice(range(X.shape[0]), size=k, replace=False), :]
-
-    for i in range(iterations):
-        distances = np.array([[np.linalg.norm(x - centroid) for centroid in centroids] for x in X])
-        labels = np.argmin(distances, axis=1)
-        new_centroids = np.array([X[labels == j].mean(axis=0) for j in range(k)])
-
-        if np.all(centroids == new_centroids):
-            break
-        centroids = new_centroids
-    return labels, centroids
 
 def preprocess_data(df):
     # Label encoding
@@ -333,6 +324,7 @@ def section_c():
                 top_words.insert(len(top_words.columns), word, value)
 
     return top_words
+
 def section_d():
     # section d:
     # Load the amount of sugar, time it last and price from fruits.csv
@@ -352,7 +344,7 @@ def section_d():
     X = np.array(list(zip(sugar, time, price)))
 
     # Perform K-means clustering
-    labels, centroids = kmeans(X, 3, 10000)
+    labels, centroids = kmeans(X, 3, euclidean_distance, 10000)
 
     X_plot = np.array(list(zip(sugar, price)))
     # Plot the K-means clustering
@@ -365,10 +357,25 @@ def section_e():
 
     categorical_features = X[['Color', 'Peeling/Messiness', 'Growth Season']].values
 
-    labels, centroids = kmeans_mixed(categorical_features, 3)
+    labels, centroids = kmeans(categorical_features, 3, mixed_distance,axis=1)
 
     X_plot = df[['Amount of Sugar', 'Price']].values
     plot_kmeans(X_plot, labels, centroids)
+
+def section_f(df):
+
+    # Extract TF-IDF features for clustering
+    tfidf_features = df.drop(
+        columns=['Fruit', 'Color', 'Peeling/Messiness', 'Growth Season', 'Price', 'Amount of Sugar',
+                 'Time it Lasts']).values
+
+    # Perform K-means clustering on TF-IDF data
+    labels, centroids = kmeans(tfidf_features, 3,cosine_distance, axis=1)
+
+    # Plot the clustering results with respect to Amount of Sugar and Price
+    X_plot = df[['Amount of Sugar', 'Price']].values
+    plot_kmeans(X_plot, labels, centroids)
+
 
 if __name__ == "__main__":
     # section (a)
@@ -376,7 +383,9 @@ if __name__ == "__main__":
     # for fruit in fruits:
     #     fruitcrawl(fruit)
 
-    section_b()
-    section_c()
+    # section_b()
+
+    # top_words = section_c()
     section_d()
     section_e()
+    # section_f(top_words)
