@@ -115,7 +115,7 @@ def tf_idf(text, documents):
 
     # Tokenize and filter stop words
     for word in word_tokenize(text.lower()):
-        if word not in stop_words:
+        if word.isalnum() and word not in stop_words:
             word_counts[word] += 1
             total_words += 1
 
@@ -152,8 +152,8 @@ def build_similarity_matrix(documents):
             doc1_tfidf = tfidf_all[i]
             doc2_tfidf = tfidf_all[j]
             dot_product = sum(tfidf1 * tfidf2 for tfidf1, tfidf2 in zip(doc1_tfidf.values(), doc2_tfidf.values()))
-            magnitude1 = sum(tfidf ** 2 for tfidf in doc1_tfidf.values()) ** 0.5
-            magnitude2 = sum(tfidf ** 2 for tfidf in doc2_tfidf.values()) ** 0.5
+            magnitude1 = np.linalg.norm(list(doc1_tfidf.values()))
+            magnitude2 = np.linalg.norm(list(doc2_tfidf.values()))
             if magnitude1 == 0 or magnitude2 == 0:
                 row.append(0.0)  # Avoid division by zero
             else:
@@ -164,7 +164,7 @@ def build_similarity_matrix(documents):
     return similarity_matrix
 
 
-def pagerank(similarity_matrix, damping_factor=0.85, max_iterations=100, tolerance=1e-6):
+def pagerank(similarity_matrix, damping_factor=0.01, max_iterations=10000, tolerance=1e-9):
     """
     Implements PageRank algorithm on the similarity matrix.
 
@@ -177,16 +177,15 @@ def pagerank(similarity_matrix, damping_factor=0.85, max_iterations=100, toleran
     Returns:
         A list of PageRank scores for each document (sentence).
     """
-    n = len(similarity_matrix)
-    ranks = [1.0 / n for _ in range(n)]  # Initialize with uniform ranks
+    np_similarity_matrix = np.array(similarity_matrix)
+    n = np_similarity_matrix.shape[0]
 
+    ranks = np.ones(n) / n
     for _ in range(max_iterations):
-        new_ranks = [damping_factor * sum(similarity * rank for similarity, rank in zip(row, ranks)) for row in
-                     similarity_matrix]
-        new_ranks = [new_rank + (1 - damping_factor) / n for new_rank in new_ranks]  # Add random surfer weight
+        new_ranks = damping_factor * np.dot(np_similarity_matrix, ranks)
+        new_ranks = new_ranks + (1 - damping_factor) / n
 
-        # Check for convergence
-        if sum(abs(new_rank - old_rank) for new_rank, old_rank in zip(new_ranks, ranks)) < tolerance:
+        if np.linalg.norm(new_ranks - ranks) < tolerance:
             return new_ranks
 
         ranks = new_ranks
@@ -223,24 +222,35 @@ def summarize_fruit(fruit_name, fruit_data_folder):
         print(f"- {sentence.strip()}")
 
 def euclidean_distance(X, centroids):
-    return np.sqrt(((X - centroids[:, np.newaxis]) ** 2).sum(axis=2))
-
-def mixed_distance(X, centroids):
-    return np.array([[np.linalg.norm(x - centroid) for centroid in centroids] for x in X])
+    return np.linalg.norm(X[:, np.newaxis] - centroids, axis=2)
 
 def cosine_distance(X, centroids):
     similarities = cosine_similarity(X, centroids)
     return 1 - similarities  # Convert similarity to distance
-def kmeans(X, k, distance_callback, iterations=100, axis=0):
+
+
+def combined_distance(X_tfidf, X_features, centroids_tfidf, centroids_features, alpha=0.5):
+    # Cosine distance for TF-IDF vectors
+    cosine_dist = cosine_distance(X_tfidf, centroids_tfidf)
+
+    # Euclidean distance for physical features
+    euclidean_dist = euclidean_distance(X_features, centroids_features)
+    # Combined distance
+    combined_dist = alpha * cosine_dist + (1 - alpha) * euclidean_dist
+    return combined_dist
+
+def kmeans(X, k, distance_callback, iterations=100):
     centroids = X[np.random.choice(range(X.shape[0]), size=k, replace=False), :]
     for i in range(iterations):
         distances = distance_callback(X, centroids)
-        labels = np.argmin(distances, axis=axis)
+        labels = np.argmin(distances, axis=1)
         new_centroids = np.array([X[labels == j].mean(axis=0) for j in range(k)])
         if np.all(centroids == new_centroids):
             break
         centroids = new_centroids
     return labels, centroids
+
+
 
 def plot_kmeans(X, labels, centroids):
     plt.scatter(X[:, 0], X[:, 1], c=labels, cmap='viridis', label='Data points')
@@ -357,25 +367,23 @@ def section_e():
 
     categorical_features = X[['Color', 'Peeling/Messiness', 'Growth Season']].values
 
-    labels, centroids = kmeans(categorical_features, 3, mixed_distance,axis=1)
+    labels, centroids = kmeans(categorical_features, 3, euclidean_distance)
 
     X_plot = df[['Amount of Sugar', 'Price']].values
     plot_kmeans(X_plot, labels, centroids)
 
-def section_f(df):
-
-    # Extract TF-IDF features for clustering
-    tfidf_features = df.drop(
-        columns=['Fruit', 'Color', 'Peeling/Messiness', 'Growth Season', 'Price', 'Amount of Sugar',
-                 'Time it Lasts']).values
-
+def section_f(top_words):
+    df = pd.read_csv("fruits.csv")
+    X = top_words.values
     # Perform K-means clustering on TF-IDF data
-    labels, centroids = kmeans(tfidf_features, 3,cosine_distance, axis=1)
+    labels, centroids = kmeans(X, 3,cosine_distance)
 
     # Plot the clustering results with respect to Amount of Sugar and Price
     X_plot = df[['Amount of Sugar', 'Price']].values
     plot_kmeans(X_plot, labels, centroids)
 
+def section_g():
+    pass
 
 if __name__ == "__main__":
     # section (a)
@@ -385,7 +393,7 @@ if __name__ == "__main__":
 
     # section_b()
 
-    # top_words = section_c()
-    section_d()
-    section_e()
-    # section_f(top_words)
+    top_words = section_c()
+    # section_d()
+    # section_e()
+    section_f(top_words)
