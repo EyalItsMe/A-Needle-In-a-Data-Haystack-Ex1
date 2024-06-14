@@ -251,8 +251,26 @@ def kmeans(X, k, distance_callback, iterations=100):
     return labels, centroids
 
 
+def kmeans_combined(X_num, X_tfidf, k, alpha=0.5, iterations=100):
+    centroids_num = X_num[np.random.choice(range(X_num.shape[0]), size=k, replace=False), :]
+    centroids_tfidf = X_tfidf[np.random.choice(range(X_tfidf.shape[0]), size=k, replace=False), :]
 
-def plot_kmeans(X, labels, centroids):
+    for i in range(iterations):
+        distances = combined_distance(X_num, X_tfidf, centroids_num, centroids_tfidf, alpha )
+        labels = np.argmin(distances, axis=1)
+
+        new_centroids_num = np.array([X_num[labels == j].mean(axis=0) for j in range(k)])
+        new_centroids_tfidf = np.array([X_tfidf[labels == j].mean(axis=0) for j in range(k)])
+
+        if np.all(centroids_num == new_centroids_num) and np.all(centroids_tfidf == new_centroids_tfidf):
+            break
+
+        centroids_num, centroids_tfidf = new_centroids_num, new_centroids_tfidf
+
+    return labels, centroids_num, centroids_tfidf
+
+
+def plot_kmeans(X, labels):
     plt.scatter(X[:, 0], X[:, 1], c=labels, cmap='viridis', label='Data points')
     plt.title('K-means Clustering of Fruits')
     plt.xlabel('Amount of Sugar')
@@ -358,7 +376,7 @@ def section_d():
 
     X_plot = np.array(list(zip(sugar, price)))
     # Plot the K-means clustering
-    plot_kmeans(X_plot, labels, centroids)
+    plot_kmeans(X_plot, labels)
 
 def section_e():
     # Load the data from CSV file
@@ -370,7 +388,7 @@ def section_e():
     labels, centroids = kmeans(categorical_features, 3, euclidean_distance)
 
     X_plot = df[['Amount of Sugar', 'Price']].values
-    plot_kmeans(X_plot, labels, centroids)
+    plot_kmeans(X_plot, labels)
 
 def section_f(top_words):
     df = pd.read_csv("fruits.csv")
@@ -380,10 +398,17 @@ def section_f(top_words):
 
     # Plot the clustering results with respect to Amount of Sugar and Price
     X_plot = df[['Amount of Sugar', 'Price']].values
-    plot_kmeans(X_plot, labels, centroids)
+    plot_kmeans(X_plot, labels)
 
-def section_g():
-    pass
+def section_g(top_words):
+    df = pd.read_csv("fruits.csv")
+    df = preprocess_data(df)
+    X_num = df[['Amount of Sugar', 'Time it Lasts', 'Price']].values
+    X_tfidf = top_words.values
+    labels, centroids_num, centroids_tfidf = kmeans_combined(X_num, X_tfidf, k=3, alpha=0.5)
+    X_plot = df[['Amount of Sugar', 'Price']].values
+    plot_kmeans(X_plot, labels)
+
 
 if __name__ == "__main__":
     # section (a)
@@ -396,4 +421,5 @@ if __name__ == "__main__":
     top_words = section_c()
     # section_d()
     # section_e()
-    section_f(top_words)
+    # section_f(top_words)
+    section_g(top_words)
