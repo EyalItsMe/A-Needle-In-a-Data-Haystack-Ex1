@@ -3,7 +3,6 @@ import networkx as nx
 import numpy as np
 import community.community_louvain as community_louvain
 from fruits import pagerank
-from networkx import spring_layout, draw
 
 
 def calc_histogram(G, num_bins):
@@ -11,11 +10,11 @@ def calc_histogram(G, num_bins):
     adj_matrix = nx.adjacency_matrix(G).todense()
 
     # todo need to fix our code and replace it with that
-    # similarity_matrix = adj_matrix.tolist()
-    # pagerank_values = pagerank(similarity_matrix, damping_factor=0.15)
+    similarity_matrix = adj_matrix.tolist()
+    pagerank_values = pagerank(similarity_matrix, damping_factor=0.01)
 
-    pagerank = nx.pagerank(G)
-    pagerank_values = list(pagerank.values())
+    # pagerank = nx.pagerank(G)
+    # pagerank_values = list(pagerank.values())
 
     bin_edges = np.linspace(min(pagerank_values), max(pagerank_values), num_bins + 1)
     plt.hist(pagerank_values, bins=bin_edges, edgecolor='black')  # Equal-length bins
@@ -96,25 +95,21 @@ def aggregate_graph(G, partition):
 
 
 def question_9():
-    # # section (a)
-    # edges = [(1, 2), (2, 3), (1, 3), (3, 4), (4, 5), (4, 5), (4, 6)]
-    # G1 = nx.Graph()
-    # G1.add_edges_from(edges)
-    # calc_histogram(G1, 3)
+    # section (a)
+    edges = [(1, 2), (2, 3), (1, 3), (3, 4), (4, 5), (4, 5), (4, 6)]
+    G1 = nx.Graph()
+    G1.add_edges_from(edges)
+    calc_histogram(G1, 3)
 
     # section (b)
-    # edges = [(4, 1), (3, 1), (2, 1), (5, 1), (1, 5), (6, 1), (1, 6), (7, 1), (1, 8), (9, 10), (10, 9)]
-    # G2 = nx.DiGraph()
-    edges = [(1, 2), (1, 3), (1, 4), (1, 5), (5, 6), (5, 7), (6, 7), (10, 11), (11, 12), (2, 13), (14, 14) ]
-    # edges = [(1, 2), (1, 4), (1, 5), (5, 6), (5, 7), (6, 7), (10, 11), (11, 12), (2, 13) ]
-    # edges = [(1, 2), (1, 4), (1, 5), (5, 6), (5, 7), (6, 7), (10, 11), (11, 12), (2, 13), (14,14)]
+    edges = [(1, 2), (1, 3), (1, 4), (1, 5), (5, 6), (5, 7), (6, 7), (10, 11), (11, 12), (2, 13), (2, 15)]
     G2 = nx.Graph()
     G2.add_edges_from(edges)
-    # calc_histogram(G2, 4)
+    calc_histogram(G2, 4)
 
-    # # section (c)
-    # partition1 = louvain_community_detection(G1)
-    # aggregate_graph(G1, partition1)
+    # section (c)
+    partition1 = louvain_community_detection(G1)
+    aggregate_graph(G1, partition1)
     partition2 = louvain_community_detection(G2)
     aggregate_graph(G2, partition2)
 
