@@ -6,10 +6,9 @@ from os import listdir
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
 import pandas as pd
-
-
+from festival import tfidf
+from sklearn.metrics.pairwise import cosine_similarity
 
 import nltk
 # nltk.download('punkt')
@@ -116,7 +115,7 @@ def tf_idf(text, documents):
 
     # Tokenize and filter stop words
     for word in word_tokenize(text.lower()):
-        if word not in stop_words:
+        if word.isalnum() and word not in stop_words:
             word_counts[word] += 1
             total_words += 1
 
@@ -153,8 +152,8 @@ def build_similarity_matrix(documents):
             doc1_tfidf = tfidf_all[i]
             doc2_tfidf = tfidf_all[j]
             dot_product = sum(tfidf1 * tfidf2 for tfidf1, tfidf2 in zip(doc1_tfidf.values(), doc2_tfidf.values()))
-            magnitude1 = sum(tfidf ** 2 for tfidf in doc1_tfidf.values()) ** 0.5
-            magnitude2 = sum(tfidf ** 2 for tfidf in doc2_tfidf.values()) ** 0.5
+            magnitude1 = np.linalg.norm(list(doc1_tfidf.values()))
+            magnitude2 = np.linalg.norm(list(doc2_tfidf.values()))
             if magnitude1 == 0 or magnitude2 == 0:
                 row.append(0.0)  # Avoid division by zero
             else:
@@ -165,7 +164,7 @@ def build_similarity_matrix(documents):
     return similarity_matrix
 
 
-def pagerank(similarity_matrix, damping_factor=0.85, max_iterations=100, tolerance=1e-6):
+def pagerank(similarity_matrix, damping_factor=0.01, max_iterations=10000, tolerance=1e-9):
     """
     Implements PageRank algorithm on the similarity matrix.
 
@@ -178,16 +177,15 @@ def pagerank(similarity_matrix, damping_factor=0.85, max_iterations=100, toleran
     Returns:
         A list of PageRank scores for each document (sentence).
     """
-    n = len(similarity_matrix)
-    ranks = [1.0 / n for _ in range(n)]  # Initialize with uniform ranks
+    np_similarity_matrix = np.array(similarity_matrix)
+    n = np_similarity_matrix.shape[0]
 
+    ranks = np.ones(n) / n
     for _ in range(max_iterations):
-        new_ranks = [damping_factor * sum(similarity * rank for similarity, rank in zip(row, ranks)) for row in
-                     similarity_matrix]
-        new_ranks = [new_rank + (1 - damping_factor) / n for new_rank in new_ranks]  # Add random surfer weight
+        new_ranks = damping_factor * np.dot(np_similarity_matrix, ranks)
+        new_ranks = new_ranks + (1 - damping_factor) / n
 
-        # Check for convergence
-        if sum(abs(new_rank - old_rank) for new_rank, old_rank in zip(new_ranks, ranks)) < tolerance:
+        if np.linalg.norm(new_ranks - ranks) < tolerance:
             return new_ranks
 
         ranks = new_ranks
@@ -223,41 +221,62 @@ def summarize_fruit(fruit_name, fruit_data_folder):
     for sentence in summary:
         print(f"- {sentence.strip()}")
 
-def kmeans(X,k, iterations=1000):
+def euclidean_distance(X, centroids):
+    return np.linalg.norm(X[:, np.newaxis] - centroids, axis=2)
+
+def cosine_distance(X, centroids):
+    similarities = cosine_similarity(X, centroids)
+    return 1 - similarities  # Convert similarity to distance
+
+
+def combined_distance(X_tfidf, X_features, centroids_tfidf, centroids_features, alpha=0.5):
+    # Cosine distance for TF-IDF vectors
+    cosine_dist = cosine_distance(X_tfidf, centroids_tfidf)
+
+    # Euclidean distance for physical features
+    euclidean_dist = euclidean_distance(X_features, centroids_features)
+    # Combined distance
+    combined_dist = alpha * cosine_dist + (1 - alpha) * euclidean_dist
+    return combined_dist
+
+def kmeans(X, k, distance_callback, iterations=100):
     centroids = X[np.random.choice(range(X.shape[0]), size=k, replace=False), :]
-
     for i in range(iterations):
-        distances = np.sqrt(((X-centroids[:,np.newaxis])**2).sum(axis=2))
-
-        labels = np.argmin(distances, axis=0)
-
+        distances = distance_callback(X, centroids)
+        labels = np.argmin(distances, axis=1)
         new_centroids = np.array([X[labels == j].mean(axis=0) for j in range(k)])
-
         if np.all(centroids == new_centroids):
             break
+        centroids = new_centroids
     return labels, centroids
 
 
-def plot_kmeans(X, labels, centroids):
+def kmeans_combined(X_num, X_tfidf, k, alpha=0.5, iterations=100):
+    centroids_num = X_num[np.random.choice(range(X_num.shape[0]), size=k, replace=False), :]
+    centroids_tfidf = X_tfidf[np.random.choice(range(X_tfidf.shape[0]), size=k, replace=False), :]
+
+    for i in range(iterations):
+        distances = combined_distance(X_num, X_tfidf, centroids_num, centroids_tfidf, alpha )
+        labels = np.argmin(distances, axis=1)
+
+        new_centroids_num = np.array([X_num[labels == j].mean(axis=0) for j in range(k)])
+        new_centroids_tfidf = np.array([X_tfidf[labels == j].mean(axis=0) for j in range(k)])
+
+        if np.all(centroids_num == new_centroids_num) and np.all(centroids_tfidf == new_centroids_tfidf):
+            break
+
+        centroids_num, centroids_tfidf = new_centroids_num, new_centroids_tfidf
+
+    return labels, centroids_num, centroids_tfidf
+
+
+def plot_kmeans(X, labels):
     plt.scatter(X[:, 0], X[:, 1], c=labels, cmap='viridis', label='Data points')
     plt.title('K-means Clustering of Fruits')
     plt.xlabel('Amount of Sugar')
     plt.ylabel('Price')
     plt.legend()
     plt.show()
-
-def kmeans_mixed(X, k, iterations=100):
-    centroids = X[np.random.choice(range(X.shape[0]), size=k, replace=False), :]
-
-    for i in range(iterations):
-        distances = np.array([[np.linalg.norm(x - centroid) for centroid in centroids] for x in X])
-        labels = np.argmin(distances, axis=1)
-        new_centroids = np.array([X[labels == j].mean(axis=0) for j in range(k)])
-
-        if np.all(centroids == new_centroids):
-            break
-        centroids = new_centroids
-    return labels, centroids
 
 def preprocess_data(df):
     # Label encoding
@@ -271,12 +290,17 @@ def preprocess_data(df):
     df['Growth Season'] = df['Growth Season'].map(season_mapping)
     return df
 
+def section_a():
+    global fruits
+    fruits = extract_fruits("fruits.csv")
+    # Create a folder to store JSON files
+    os.makedirs("fruit_json", exist_ok=True)
+    for fruit in fruits:
+        fruitcrawl(fruit)
 
 def section_b():
     # section (b)
     fruit_data_folder = "fruit_json/"
-    # Load all fruit text data from the JSON files
-    fruit_documents = load_fruit_docs(fruit_data_folder)
     # Open the CSV file for writing with UTF-8 encoding
     with io.open("fruits_summary.csv", "w", newline='', encoding='utf-8') as csvfile:
         csvwriter = csv.writer(csvfile)
@@ -312,6 +336,30 @@ def section_b():
             for sentence in summary:
                 print(f"- {sentence.strip('')}")
 
+def section_c():
+    # For each fruit, take the3 words with highest td-idf value and add to the dataframe a column for each word and in each row, the td-idf value that word received for the corresponding fruit.** Remove duplicates of words if they appear as a top word for more than one fruit (so don’t have two columns for the word ’sweet’ for example).
+    summary_path = "fruits_summary.csv"
+    df = pd.read_csv(summary_path)
+    top_words = pd.DataFrame()
+
+    for fruit, summary in df[['Fruit', 'Summary']].values:
+        # Remove , and - from words
+        words = summary.replace(',', '').replace('-', ' ').lower().split(' ')
+        # Get unique words
+        unique_words = set(words)
+        score = tfidf(summary_path, unique_words, False)
+        # sort scores by the relevant fruit:
+        fruit_scores = score.loc[fruit]
+        top_fruit_words = fruit_scores.sort_values(ascending=False).head(3)
+        #Get the row of the top fruit words:
+        top_fruit = score[top_fruit_words.index]
+
+        for word, value in top_fruit.items():
+            if word not in top_words.columns:
+                top_words.insert(len(top_words.columns), word, value)
+
+    return top_words
+
 def section_d():
     # section d:
     # Load the amount of sugar, time it last and price from fruits.csv
@@ -331,11 +379,11 @@ def section_d():
     X = np.array(list(zip(sugar, time, price)))
 
     # Perform K-means clustering
-    labels, centroids = kmeans(X, 3, 10000)
+    labels, centroids = kmeans(X, 3, euclidean_distance, 10000)
 
     X_plot = np.array(list(zip(sugar, price)))
     # Plot the K-means clustering
-    plot_kmeans(X_plot, labels, centroids)
+    plot_kmeans(X_plot, labels)
 
 def section_e():
     # Load the data from CSV file
@@ -344,17 +392,38 @@ def section_e():
 
     categorical_features = X[['Color', 'Peeling/Messiness', 'Growth Season']].values
 
-    labels, centroids = kmeans_mixed(categorical_features, 3)
+    labels, centroids = kmeans(categorical_features, 3, euclidean_distance)
 
     X_plot = df[['Amount of Sugar', 'Price']].values
-    plot_kmeans(X_plot, labels, centroids)
+    plot_kmeans(X_plot, labels)
+
+def section_f(top_words):
+    df = pd.read_csv("fruits.csv")
+    X = top_words.values
+    # Perform K-means clustering on TF-IDF data
+    labels, centroids = kmeans(X, 3,cosine_distance)
+
+    # Plot the clustering results with respect to Amount of Sugar and Price
+    X_plot = df[['Amount of Sugar', 'Price']].values
+    plot_kmeans(X_plot, labels)
+
+def section_g(top_words):
+    df = pd.read_csv("fruits.csv")
+    df = preprocess_data(df)
+    X_num = df[['Amount of Sugar', 'Time it Lasts', 'Price']].values
+    X_tfidf = top_words.values
+    labels, centroids_num, centroids_tfidf = kmeans_combined(X_num, X_tfidf, k=3, alpha=0.5)
+    X_plot = df[['Amount of Sugar', 'Price']].values
+    plot_kmeans(X_plot, labels)
+
+
+
 
 if __name__ == "__main__":
-    # section (a)
-    fruits = extract_fruits("fruits.csv")
-    # for fruit in fruits:
-    #     fruitcrawl(fruit)
-
-    # section_b()
-    # section_d()
+    section_a()
+    section_b()
+    top_words = section_c()
+    section_d()
     section_e()
+    section_f(top_words)
+    section_g(top_words)
