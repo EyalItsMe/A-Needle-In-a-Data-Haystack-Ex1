@@ -290,6 +290,13 @@ def preprocess_data(df):
     df['Growth Season'] = df['Growth Season'].map(season_mapping)
     return df
 
+def section_a():
+    global fruits
+    fruits = extract_fruits("fruits.csv")
+    # Create a folder to store JSON files
+    os.makedirs("fruit_json", exist_ok=True)
+    for fruit in fruits:
+        fruitcrawl(fruit)
 
 def section_b():
     # section (b)
@@ -410,11 +417,6 @@ def section_g(top_words):
     plot_kmeans(X_plot, labels)
 
 
-def section_a():
-    global fruits
-    fruits = extract_fruits("fruits.csv")
-    for fruit in fruits:
-        fruitcrawl(fruit)
 
 
 if __name__ == "__main__":
