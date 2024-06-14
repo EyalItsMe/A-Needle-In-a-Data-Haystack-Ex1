@@ -410,16 +410,18 @@ def section_g(top_words):
     plot_kmeans(X_plot, labels)
 
 
-if __name__ == "__main__":
-    # section (a)
+def section_a():
+    global fruits
     fruits = extract_fruits("fruits.csv")
-    # for fruit in fruits:
-    #     fruitcrawl(fruit)
+    for fruit in fruits:
+        fruitcrawl(fruit)
 
-    # section_b()
 
+if __name__ == "__main__":
+    section_a()
+    section_b()
     top_words = section_c()
-    # section_d()
-    # section_e()
-    # section_f(top_words)
+    section_d()
+    section_e()
+    section_f(top_words)
     section_g(top_words)
