@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from festival import tfidf
 from sklearn.metrics.pairwise import cosine_similarity
-
+import networkx as nx
 import nltk
 # nltk.download('punkt')
 # nltk.download('stopwords')
@@ -212,7 +212,9 @@ def summarize_fruit(fruit_name, fruit_data_folder):
 
     # Build a similarity matrix using TF-IDF and calculate PageRank scores
     similarity_matrix = build_similarity_matrix(sentences)
-    sentence_ranks = pagerank(similarity_matrix)
+    # sentence_ranks = pagerank(similarity_matrix)
+    nx_graph = nx.from_numpy_array(np.array(similarity_matrix))
+    sentence_ranks = nx.pagerank(nx_graph)
 
     # Extract the top 5 sentences as a summary
     summary = [sentence for sentence, rank in sorted(zip(sentences, sentence_ranks), key=lambda x: x[1], reverse=True)[:5]]
@@ -228,7 +230,7 @@ def cosine_distance(X, centroids):
     similarities = cosine_similarity(X, centroids)
     return 1 - similarities  # Convert similarity to distance
 
-
+# Modification: Combined distance metric that uses both cosine distance for TF-IDF vectors and Euclidean distance for numerical features.
 def combined_distance(X_tfidf, X_features, centroids_tfidf, centroids_features, alpha=0.5):
     # Cosine distance for TF-IDF vectors
     cosine_dist = cosine_distance(X_tfidf, centroids_tfidf)
@@ -250,7 +252,7 @@ def kmeans(X, k, distance_callback, iterations=100):
         centroids = new_centroids
     return labels, centroids
 
-
+# Modification: Combined k-means that utilizes both numerical and TF-IDF features
 def kmeans_combined(X_num, X_tfidf, k, alpha=0.5, iterations=100):
     centroids_num = X_num[np.random.choice(range(X_num.shape[0]), size=k, replace=False), :]
     centroids_tfidf = X_tfidf[np.random.choice(range(X_tfidf.shape[0]), size=k, replace=False), :]
@@ -270,9 +272,9 @@ def kmeans_combined(X_num, X_tfidf, k, alpha=0.5, iterations=100):
     return labels, centroids_num, centroids_tfidf
 
 
-def plot_kmeans(X, labels):
+def plot_kmeans(X, labels, title):
     plt.scatter(X[:, 0], X[:, 1], c=labels, cmap='viridis', label='Data points')
-    plt.title('K-means Clustering of Fruits')
+    plt.title(f'K-means Clustering {title}')
     plt.xlabel('Amount of Sugar')
     plt.ylabel('Price')
     plt.legend()
@@ -290,15 +292,14 @@ def preprocess_data(df):
     df['Growth Season'] = df['Growth Season'].map(season_mapping)
     return df
 
-def section_a():
-    global fruits
-    fruits = extract_fruits("fruits.csv")
+def section_a(fruits):
+
     # Create a folder to store JSON files
     os.makedirs("fruit_json", exist_ok=True)
     for fruit in fruits:
         fruitcrawl(fruit)
 
-def section_b():
+def section_b(fruits):
     # section (b)
     fruit_data_folder = "fruit_json/"
     # Open the CSV file for writing with UTF-8 encoding
@@ -320,7 +321,9 @@ def section_b():
             similarity_matrix = build_similarity_matrix(sentences)
 
             # Calculate PageRank scores for sentences
-            sentence_ranks = pagerank(similarity_matrix)
+            # sentence_ranks = pagerank(similarity_matrix)
+            nx_graph = nx.from_numpy_array(np.array(similarity_matrix))
+            sentence_ranks = nx.pagerank(nx_graph)
 
             # Extract the top 5 sentences as a summary
             summary = [sentence for sentence, rank in
@@ -360,7 +363,7 @@ def section_c():
 
     return top_words
 
-def section_d():
+def section_d(title):
     # section d:
     # Load the amount of sugar, time it last and price from fruits.csv
     fruits = []
@@ -383,9 +386,9 @@ def section_d():
 
     X_plot = np.array(list(zip(sugar, price)))
     # Plot the K-means clustering
-    plot_kmeans(X_plot, labels)
+    plot_kmeans(X_plot, labels,title)
 
-def section_e():
+def section_e(title):
     # Load the data from CSV file
     df = pd.read_csv("fruits.csv")
     X = preprocess_data(df)
@@ -395,9 +398,9 @@ def section_e():
     labels, centroids = kmeans(categorical_features, 3, euclidean_distance)
 
     X_plot = df[['Amount of Sugar', 'Price']].values
-    plot_kmeans(X_plot, labels)
+    plot_kmeans(X_plot, labels,title)
 
-def section_f(top_words):
+def section_f(top_words, title):
     df = pd.read_csv("fruits.csv")
     X = top_words.values
     # Perform K-means clustering on TF-IDF data
@@ -405,25 +408,26 @@ def section_f(top_words):
 
     # Plot the clustering results with respect to Amount of Sugar and Price
     X_plot = df[['Amount of Sugar', 'Price']].values
-    plot_kmeans(X_plot, labels)
+    plot_kmeans(X_plot, labels, title)
 
-def section_g(top_words):
+def section_g(top_words, title):
     df = pd.read_csv("fruits.csv")
     df = preprocess_data(df)
     X_num = df[['Amount of Sugar', 'Time it Lasts', 'Price']].values
     X_tfidf = top_words.values
     labels, centroids_num, centroids_tfidf = kmeans_combined(X_num, X_tfidf, k=3, alpha=0.5)
     X_plot = df[['Amount of Sugar', 'Price']].values
-    plot_kmeans(X_plot, labels)
+    plot_kmeans(X_plot, labels, title)
 
 
 
 
 if __name__ == "__main__":
-    section_a()
-    section_b()
+    fruits = extract_fruits("fruits.csv")
+    section_a(fruits)
+    section_b(fruits)
     top_words = section_c()
-    section_d()
-    section_e()
-    section_f(top_words)
-    section_g(top_words)
+    section_d("based on Amount of Sugar, Time it lasts, Price")
+    section_e("based on Color, Peeling Messiness, Growth Season")
+    section_f(top_words, "based on tf-idf values of top 3 words")
+    section_g(top_words, "based on all features")
